@@ -1,0 +1,63 @@
+import UsersDao from "./dao";
+
+export default function UserRoutes(app, db) {
+  const dao = UsersDao(db);
+  const signin = (req, res) => {
+    const { username, password } = req.body;
+    const currentUser = dao.findUserByCredentials(username, password);
+    if (currentUser) {
+      req.session["currentUser"] = currentUser;
+      res.json(currentUser);
+    } else {
+      res.status(401).json({ message: "Unable to login. Try again later." });
+    }
+  };
+  const signup = (req, res) => {
+    const user = dao.findUserByUsername(req.body.username);
+    if (user) {
+      res.status(400).json({ message: "Username already in use" });
+      return;
+    }
+    const { username, password } = req.body;
+    if (!username || !password) {
+      res.status(400).json({ message: "Username and password are required" });
+      return;
+    }
+    const currentUser = dao.createUser({
+      username, password, role: "STUDENT", firstName: "", lastName: "",
+      email: "", loginId: "", section: "", lastActivity: "", totalActivity: "",
+    });
+    req.session["currentUser"] = currentUser;
+    res.json(currentUser);
+  };
+  const profile = (req, res) => {
+    const currentUser = req.session["currentUser"];
+    if (!currentUser) {
+      res.sendStatus(401);
+      return;
+    }
+    res.json(currentUser);
+  };
+  const signout = (req, res) => {
+    req.session.destroy(() => {
+      res.sendStatus(200);
+    });
+  };
+
+  const updateUser = (req, res) => {
+    const userId = req.params.userId;
+    if (req.session["currentUser"]?._id !== userId) {
+      res.sendStatus(403);
+      return;
+    }
+    dao.updateUser(userId, req.body);
+    const currentUser = dao.findUserById(userId);
+    req.session["currentUser"] = currentUser;
+    res.json(currentUser);
+  };
+  app.post("/api/users/signup", signup);
+  app.post("/api/users/signin", signin);
+  app.post("/api/users/signout", signout);
+  app.get("/api/users/profile", profile);
+  app.put("/api/users/:userId", updateUser);
+}
